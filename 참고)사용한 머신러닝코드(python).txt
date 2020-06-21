@@ -1,0 +1,121 @@
+import tensorflow as tf
+import numpy as np
+import random as rd
+import tkinter
+import pandas as pd
+import sys
+
+#from tkinter import * 
+
+#xy: 학습/테스트할 데이터들, xa_data:실제 예측할 데이터들
+df_emp = pd.read_csv('C:\\Users\\SK\\Desktop\\RPA_project\\emp.csv')
+xy = np.array(df_emp.values[:,2:], dtype=np.float)
+
+df_appli = pd.read_csv('C:\\Users\\SK\\Desktop\\RPA_project\\appli.csv')
+xa_data = np.array(df_appli.values[:,2:9], dtype=np.float)
+
+
+
+
+
+#15% 테스트셋으로 제외시키기
+rownum_test=int(xy.shape[0]*0.15)
+
+r_list=[]
+rand_num = rd.randint(0,rownum_test)
+xy_test=xy[rand_num,:]
+for i in range(rownum_test) :
+    while rand_num in r_list:
+            rand_num = rd.randint(0,rownum_test)
+    r_list.append(rand_num)
+    np.append(xy_test,xy[rand_num,:],axis=0)
+        
+
+for i in range(rownum_test):
+    if i == 0:
+        xt_test=xy[rand_num,:]
+    else:
+        xy_test=np.vstack((xy_test,xy[rand_num,:]))
+    
+    xy = np.delete(xy, r_list[i], axis=0) 
+    
+print("train 할 데이터 개수:",xy.shape[0])
+print("test set으로 남겨둘 데이터 개수",xy_test.shape[0])
+
+
+
+    
+tf.reset_default_graph() 
+
+
+xt_data = xy_test[:, 0:-1] #끝 칼럼(y)만 빼고 다 가져온다.
+yt_data = xy_test[:, [-1]] # y칼럼
+
+      
+x_data = xy[:, 0:-1] #끝 칼럼(y)만 빼고 다 가져온다.
+y_data = xy[:, [-1]] # y칼럼
+
+X = tf.placeholder(tf.float32, shape=[None, 7]) # N x 7 행렬
+Y = tf.placeholder(tf.float32, shape=[None, 1]) # N x 1 행렬
+
+W = tf.Variable(tf.random_normal([7,1], name='weight'))
+b = tf.Variable(tf.random_normal([1], name='bias'))
+          
+hyp = tf.sigmoid(tf.matmul(X, W) + b)
+
+          
+cost = -tf.reduce_mean(Y * tf.log(hyp) + (1 - Y) * tf.log(1 - hyp))
+          
+train = tf.train.AdamOptimizer(learning_rate = 0.01).minimize(cost)
+
+#학습한 후 hyp는 0.8이나 0.2같은 0~1사이의 소수로 나올 것이다. 이를 binary로 나타낸다.
+predicted = tf.cast(hyp > 0.5, dtype=tf.float32) #true/false를 1/0으로 캐스트한다
+accuracy = tf.reduce_mean(tf.cast(tf.equal(predicted, Y), dtype=tf.float32))
+          
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+
+#학습진행
+for step in range(10001):
+          cost_val, _ = sess.run([cost, train], feed_dict={X: x_data, Y: y_data})
+
+
+#정확도 계산
+h, c, a = sess.run([hyp, predicted, accuracy], feed_dict={X: xt_data, Y: yt_data})
+print()
+print("\naccuracy: ",a)
+
+#새로운 값 넣기
+list_ac=[]
+list_ac.append(sess.run(predicted, feed_dict={X: xa_data}))
+
+
+
+pred=np.array(list_ac)
+df_pred=pd.DataFrame(pred.reshape(len(sum(list_ac,[])),1), columns={'consquence'})
+                     
+#저장하기 - csv로 저장
+final=pd.concat([df_appli,df_pred], axis=1)
+print(final)
+final.to_csv("C:\\Users\\SK\\Desktop\\RPA_project\\final.csv",encoding='ms949',header=True, index=None)
+
+'''xy_ac=np.hstack([xa_data, pred.reshape(len(sum(list_ac,[])),1)])
+np.savetxt("C:\\Users\\SK\\1excute\\final.csv", xy_ac, delimiter=",")'''
+
+#저장하기 - 정확도
+f = open('C:\\Users\\SK\\Desktop\\RPA_project\\output.txt','w')
+f.write(str(a))
+f.close()
+
+
+#알림
+window=tkinter.Tk()
+window.title("알림")
+window.geometry("300x100")
+window.resizable(False, False)
+
+label=tkinter.Label(window, text='작업이 완료되었습니다.\n final.csv와 output.txt가 생성되었습니다.')
+label.pack()
+
+window.mainloop()
+
